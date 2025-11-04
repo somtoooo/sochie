@@ -1,41 +1,36 @@
-import express from "express";
-const app = express();
-
-app.use(express.static("public"));
-
-// api/webhook.js
 import axios from "axios";
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
-    // Webhook verification (Meta calls this once)
+    // ✅ Webhook verification (Meta calls this once)
     const verifyToken = process.env.META_VERIFY_TOKEN;
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    if (mode && token && mode === "subscribe" && token === verifyToken) {
-      res.status(200).send(challenge);
+    if (mode === "subscribe" && token === verifyToken) {
+      return res.status(200).send(challenge);
     } else {
-      res.status(403).send("Forbidden");
+      return res.status(403).send("Forbidden");
     }
-  } else if (req.method === "POST") {
+  }
+
+  if (req.method === "POST") {
     try {
       const body = req.body;
 
-      // Confirm event type (WhatsApp)
       if (body.object === "whatsapp_business_account") {
         const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
         const phoneNumberId =
           body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
 
         if (message && phoneNumberId) {
-          const from = message.from; // user's WhatsApp number
+          const from = message.from;
           const userText = message.text?.body || "";
 
-          console.log("Incoming message from:", from, "Text:", userText);
+          console.log("Incoming:", from, userText);
 
-          // 1️⃣ Get AI reply from OpenAI
+          // 🧠 AI Response (OpenAI)
           const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -58,7 +53,7 @@ export default async function handler(req, res) {
           const aiData = await aiResponse.json();
           const aiMessage = aiData.choices?.[0]?.message?.content || "I'm here!";
 
-          // 2️⃣ Send reply back via WhatsApp Cloud API
+          // 💬 Send message back to WhatsApp
           await axios.post(
             `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
             {
@@ -75,13 +70,13 @@ export default async function handler(req, res) {
             }
           );
 
-          console.log("Replied:", aiMessage);
+          console.log("Sochie replied:", aiMessage);
         }
       }
 
       res.status(200).send("EVENT_RECEIVED");
     } catch (error) {
-      console.error("Webhook Error:", error.response?.data || error.message);
+      console.error("Webhook Error:", error.message);
       res.status(500).send("Error processing webhook");
     }
   } else {
