@@ -1,3 +1,8 @@
+import express from "express";
+const app = express();
+
+app.use(express.static("public"));
+
 // api/webhook.js
 import axios from "axios";
 
